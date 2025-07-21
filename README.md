@@ -272,7 +272,15 @@ motor.start_monitoring([1, 2, 3], interval=0.1)
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+The MIT License is a permissive free software license that allows you to:
+- ✅ Use the software for any purpose
+- ✅ Modify and distribute the software  
+- ✅ Include it in proprietary software
+- ✅ Sell copies of the software
+
+The only requirement is including the copyright notice and license text in copies.
 
 ## 🔗 Related Documentation
 

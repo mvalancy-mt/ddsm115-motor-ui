@@ -26,12 +26,12 @@ A complete GUI application for controlling DDSM115 servo motors via RS485 commun
 ## ✨ Features
 
 - **Full Motor Control**: Velocity, current, and position control modes
-- **Real-time Monitoring**: Live status updates with 50ms precision
+- **Real-time Monitoring**: Live status updates and graphing
 - **Auto-detection**: Automatically finds motors on connection
 - **Safety Features**: Emergency stop, communication monitoring
-- **User-friendly Interface**: Tabbed interface with clear controls
-- **Data Logging**: Export motor data to CSV
-- **Sequence Control**: Run automated movement sequences
+- **User-friendly Interface**: Clean 3-tab interface with intuitive controls
+- **Touch-friendly Design**: Large buttons and sliders optimized for touch screens
+- **Diagnostic Tools**: Built-in motor testing and diagnostic functions
 
 ## 🔧 Hardware Requirements
 
@@ -101,7 +101,7 @@ chmod +x scripts/setup.sh
 
 **🛑 Emergency Stop**:
 - Immediately stops motor
-- Stops any running sequences
+- Halts all motor commands
 - Switches to safe velocity mode
 
 **📊 Real-time Monitoring**:
@@ -157,7 +157,7 @@ chmod +x scripts/setup.sh
 ❌ Commands not working
 → Check motor is in correct mode
 → Use emergency stop and try again
-→ Verify no sequences are running
+→ Check communication status in Connection tab
 ```
 
 ## 📋 System Requirements

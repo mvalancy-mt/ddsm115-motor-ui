@@ -110,15 +110,8 @@ class SimpleDDSM115GUI:
             return None
         
         try:
-            # Wrap the callback to auto-cleanup when executed
-            def wrapped_callback():
-                try:
-                    callback()
-                finally:
-                    # Remove from tracking when callback completes
-                    self._scheduled_callbacks.discard(callback_id)
-            
-            callback_id = self.root.after(delay_ms, wrapped_callback)
+            # Schedule the callback first to get the ID
+            callback_id = self.root.after(delay_ms, callback)
             self._scheduled_callbacks.add(callback_id)
             return callback_id
         except Exception:
@@ -2904,7 +2897,16 @@ and power disconnection for immediate safety in any uncertain situation.
         self._shutdown_in_progress = True
         self.status_update_active = False
         
-        # No timers to cancel with new state-based approach
+        # Cancel all scheduled callbacks to prevent warnings
+        try:
+            for callback_id in list(self._scheduled_callbacks):
+                try:
+                    self.root.after_cancel(callback_id)
+                except Exception:
+                    pass
+            self._scheduled_callbacks.clear()
+        except Exception:
+            pass
         
         self.stop_monitoring()
         

@@ -279,6 +279,23 @@ class MotorCommandQueue:
         cmd = MotorCommand(CommandType.DISABLE, motor_id, None, callback)
         self._queue_command(cmd)
     
+    def set_motor_id(self, old_id: int, new_id: int, callback: Optional[Callable] = None) -> bool:
+        """Set motor ID (change motor's ID from old_id to new_id)"""
+        if not self.motor or not self.is_connected:
+            return False
+        
+        try:
+            # Call the underlying DDSM115 method directly (this is a synchronous operation)
+            result = self.motor.set_motor_id(old_id, new_id)
+            if callback:
+                callback(result)
+            return result
+        except Exception as e:
+            print(f"Error setting motor ID: {e}")
+            if callback:
+                callback(False)
+            return False
+    
     def get_last_feedback(self, motor_id: int) -> Optional[MotorFeedback]:
         """Get last feedback for motor"""
         return self.last_feedback.get(motor_id)

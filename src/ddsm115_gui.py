@@ -602,8 +602,10 @@ class SimpleDDSM115GUI:
         
         # Setup graph
         if MATPLOTLIB_AVAILABLE:
+            print("📊 Setting up matplotlib graph...")
             self.setup_matplotlib_graph(graph_frame)
         else:
+            print("⚠️ Matplotlib not available, using text graph")
             self.setup_text_graph(graph_frame)
 
     def create_custom_window_controls(self):
@@ -1760,15 +1762,31 @@ and power disconnection for immediate safety in any uncertain situation.
                       loc='upper left', facecolor='#3c3c3c', 
                       edgecolor='#5a5a5a', labelcolor='#e0e0e0')
         
-        # Animation - properly initialize to None first
-        self.ani = None
+        # Use Tkinter timer instead of matplotlib animation for better integration
         self.graph_start_time = time.time()
+        self._start_graph_updates()
+        print("✅ Graph updates started with Tkinter timer")
+    
+    def _start_graph_updates(self):
+        """Start graph updates using Tkinter's after method"""
+        self._update_graph_timer()
+    
+    def _update_graph_timer(self):
+        """Timer-based graph update"""
         try:
-            self.ani = animation.FuncAnimation(self.fig, self.update_graph, interval=100, 
-                                             blit=False, cache_frame_data=False)
+            if hasattr(self, 'canvas') and self.canvas:
+                self.update_graph(None)  # Call update_graph with dummy frame parameter
+                self.canvas.draw()  # Force canvas redraw
         except Exception as e:
-            print(f"Warning: Could not create animation: {e}")
-            self.ani = None
+            print(f"Graph update error: {e}")
+        
+        # Schedule next update in 100ms - use try/except to handle timer cleanup
+        try:
+            if hasattr(self, 'root') and self.root:
+                self.root.after(100, self._update_graph_timer)
+        except tk.TclError:
+            # Widget destroyed, stop timer
+            pass
         
     def setup_text_graph(self, parent):
         """Setup text-based graph fallback"""
@@ -1778,12 +1796,71 @@ and power disconnection for immediate safety in any uncertain situation.
     def update_graph(self, frame):
         """Update matplotlib graph with dual Y-axes - robust version"""
         try:
+            # Graph update function is being called by Tkinter timer
             # Verify we have data and attributes
             if not hasattr(self, 'plot_time') or not hasattr(self, 'ax') or not hasattr(self, 'ax2'):
                 return []
             
-            if len(self.plot_time) == 0:
+            # Thread-safe access to plot data length
+            try:
+                data_length = len(self.plot_time) if hasattr(self, 'plot_time') and self.plot_time else 0
+            except:
+                data_length = 0
+            
+            # Graph update working
+                
+            if data_length == 0:
+                # Clear all plot lines
+                self.velocity_line.set_data([], [])
+                self.position_line.set_data([], [])  
+                self.torque_line.set_data([], [])
+                
+                # Clear axes
+                self.ax.clear()
+                self.ax2.clear()
+                
+                # Display "No data received" message in red
+                self.ax.text(0.5, 0.5, 'No data received', 
+                           transform=self.ax.transAxes, 
+                           fontsize=16, color='red', 
+                           ha='center', va='center',
+                           weight='bold')
+                
+                # Restore axis styling for dark theme
+                self.ax.set_facecolor('#1e1e1e')
+                self.ax.tick_params(colors='#e0e0e0')
+                self.ax.spines['bottom'].set_color('#5a5a5a')
+                self.ax.spines['top'].set_color('#5a5a5a') 
+                self.ax.spines['left'].set_color('#5a5a5a')
+                self.ax.spines['right'].set_color('#5a5a5a')
+                
+                # Set minimal axis ranges to prevent auto-scaling issues
+                self.ax.set_xlim(0, 1)
+                self.ax.set_ylim(0, 1)
+                
                 return []
+            
+            # We have data - proceed to plot it
+            # Plotting data
+            
+            # Clear axes first to remove "No data received" text, then re-setup
+            self.ax.clear()
+            self.ax2.clear()
+            
+            # Re-create plot lines after clearing
+            self.velocity_line, = self.ax.plot([], [], '#4a9eff', linewidth=2, label='Velocity (RPM)')
+            self.position_line, = self.ax.plot([], [], '#ff6b6b', linewidth=2, label='Position (°)')
+            self.torque_line, = self.ax2.plot([], [], '#4ecdc4', linewidth=2, label='Torque (A)')
+            
+            # Re-setup axes styling
+            self.ax.set_facecolor('#1e1e1e')
+            self.ax2.set_facecolor('#1a1a1a')
+            self.ax.tick_params(colors='#e0e0e0')
+            self.ax2.tick_params(colors='#e0e0e0')
+            self.ax.set_xlabel('Time (s)', color='#e0e0e0')
+            self.ax.set_ylabel('Velocity/Position', color='#e0e0e0')
+            self.ax2.set_ylabel('Torque (A)', color='#e0e0e0')
+            self.ax.grid(True, color='#4a4a4a', alpha=0.5)
             
             # Ensure all data arrays have the same length as plot_time
             min_length = len(self.plot_time)
@@ -1815,6 +1892,7 @@ and power disconnection for immediate safety in any uncertain situation.
                     self.velocity_line.set_data(times, velocity_data)
                     lines.append(self.velocity_line)
                     left_has_data = True
+                    # Velocity line updated successfully
             except Exception as e:
                 print(f"Warning: Error updating velocity line: {e}")
                 
@@ -2009,6 +2087,7 @@ and power disconnection for immediate safety in any uncertain situation.
     def _on_motor_feedback(self, motor_id, feedback):
         """Handle feedback from command queue - called from background thread"""
         try:
+            # Callback is working correctly
             # Validate feedback data
             if not feedback or not hasattr(feedback, 'velocity') or not hasattr(feedback, 'position') or not hasattr(feedback, 'torque'):
                 return
@@ -2041,6 +2120,8 @@ and power disconnection for immediate safety in any uncertain situation.
             self.plot_velocity.append(velocity)
             self.plot_torque.append(torque)
             self.plot_position.append(position)
+            
+            # Data is being populated correctly
             
             # Update metrics (thread-safe)
             self.last_rx_time = time.time()
@@ -2208,25 +2289,47 @@ and power disconnection for immediate safety in any uncertain situation.
             self._updating_position_from_feedback = False
     
     def set_motor_id(self):
-        """Set motor ID (requires only one motor on bus)"""
+        """Set motor ID using the Motor ID widget value as new target ID"""
         if not self.motor_controller or not self.motor_controller.is_connected:
             self.log_message("❌ Not connected")
             return
         
-        # Simple dialog for new ID
-        new_id = tk.simpledialog.askinteger("Set Motor ID", 
-                                          "Enter new motor ID (1-10):",
-                                          minvalue=1, maxvalue=10, 
-                                          initialvalue=self.motor_id_var.get())
-        if new_id is None:
+        # Get the new target ID from the spinbox
+        target_id = self.motor_id_var.get()
+        
+        # We need to find what motor is currently connected by scanning
+        self.log_message(f"🔍 Scanning for current motor to change ID to {target_id}...")
+        
+        # Scan for active motors to find the current one
+        found_motors = []
+        for test_id in range(1, 11):
+            if test_id != target_id:  # Don't test the target ID
+                try:
+                    feedback = self.motor_controller.request_feedback(test_id)
+                    if feedback:
+                        found_motors.append(test_id)
+                except:
+                    continue
+        
+        if not found_motors:
+            self.log_message("❌ No active motor found to change ID")
+            return
+        
+        if len(found_motors) > 1:
+            self.log_message(f"⚠️ Multiple motors found: {found_motors}. Please disconnect others first.")
             return
             
-        current_id = self.motor_id_var.get()
-        self.log_message(f"🆔 Setting motor ID from {current_id} to {new_id}...")
+        current_id = found_motors[0]
         
-        if self.motor_controller.set_motor_id(current_id, new_id):
-            self.motor_id_var.set(new_id)
-            self.log_message(f"✅ Motor ID set to {new_id}")
+        if current_id == target_id:
+            self.log_message(f"⚠️ Motor is already set to ID {target_id}")
+            return
+            
+        self.log_message(f"🆔 Setting motor ID from {current_id} to {target_id}...")
+        
+        if self.motor_controller.set_motor_id(current_id, target_id):
+            self.log_message(f"✅ Motor ID changed from {current_id} to {target_id}")
+            self.log_message(f"💡 Motor now responds to ID {target_id}")
         else:
             self.log_message("❌ Failed to set motor ID")
     
@@ -2660,12 +2763,8 @@ and power disconnection for immediate safety in any uncertain situation.
                     # Don't track immediate feedback callbacks - they're essential for RX
                     self.schedule_callback(0, lambda: self.update_status_display(feedback))
                     
-                    # Update graph data
-                    current_time = time.time()
-                    self.plot_time.append(current_time)
-                    self.plot_velocity.append(feedback.velocity)
-                    self.plot_position.append(feedback.position)
-                    self.plot_torque.append(feedback.torque)
+                    # Note: Graph data is populated by _on_motor_feedback() callback
+                    # from motor_command_queue - no need to duplicate here
                 
                 # No motor state application needed with release-based control
                     

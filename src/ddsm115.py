@@ -602,9 +602,10 @@ class DDSM115:
     def set_motor_id(self, old_id: int, new_id: int) -> bool:
         """
         Change motor ID (requires sending command 5 times)
+        Protocol: [0xAA, 0x55, 0x53, new_id, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         
         Args:
-            old_id: Current motor ID
+            old_id: Current motor ID (not used in protocol, but kept for compatibility)  
             new_id: New motor ID
             
         Returns:
@@ -613,16 +614,26 @@ class DDSM115:
         if new_id < 1 or new_id > 10:
             return False
         
-        # Send SET_ID command 5 times
-        data = [new_id, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        # Raw protocol format for SET_ID
+        raw_packet = [0xAA, 0x55, 0x53, new_id, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         
-        for _ in range(5):
-            if not self.send_packet(old_id, CommandType.SET_ID, data):
+        # Send SET_ID command 5 times as required
+        for i in range(5):
+            try:
+                if hasattr(self, 'serial_port') and self.serial_port and self.serial_port.is_open:
+                    self.serial_port.write(bytes(raw_packet))
+                    self.serial_port.flush()
+                else:
+                    return False
+            except Exception as e:
+                print(f"Error sending SET_ID packet {i+1}: {e}")
                 return False
             time.sleep(0.05)
         
-        # Verify by requesting feedback with new ID
+        # Wait for motor to process the ID change  
         time.sleep(0.1)
+        
+        # Verify by requesting feedback with new ID
         return self.request_feedback(new_id) is not None
     
     def start_monitoring(self, motor_ids: List[int], interval: float = 0.05):

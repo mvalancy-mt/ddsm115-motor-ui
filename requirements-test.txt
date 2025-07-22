@@ -1,0 +1,24 @@
+# Testing dependencies for DDSM115 Motor Control
+# Run: pip install -r requirements-test.txt
+
+# Core testing framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Test organization and reporting
+pytest-html>=3.1.0
+pytest-xdist>=3.0.0  # Parallel test execution
+pytest-mock>=3.10.0  # Mock utilities
+
+# Performance and benchmarking
+pytest-benchmark>=4.0.0
+
+# Test data and fixtures
+pytest-factoryboy>=2.5.0
+
+# Code quality integration
+pytest-flake8>=1.1.0
+pytest-mypy>=0.10.0
+
+# Hardware testing markers (when we get there)
+pytest-timeout>=2.1.0

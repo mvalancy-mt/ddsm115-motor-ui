@@ -47,10 +47,10 @@ fi
 if [ -f "src/ddsm115_gui.py" ]; then
     echo "🚀 Launching DDSM115 Motor Control GUI..."
     cd src
-    python3 ddsm115_gui.py
+    ../venv/bin/python3 ddsm115_gui.py
 elif [ -f "ddsm115_gui.py" ]; then
     echo "🚀 Launching DDSM115 Motor Control GUI (legacy location)..."
-    python3 ddsm115_gui.py
+    ./venv/bin/python3 ddsm115_gui.py
 else
     echo "❌ Main application file not found!"
     echo "📋 Please ensure ddsm115_gui.py exists in the current directory or src/ directory."

@@ -84,6 +84,7 @@ class DDSM210:
         
         # DDSM210 specific state
         self._motor_initialized = False
+        self._current_velocity = 0.0  # Track current commanded velocity
         
         # Register for emergency shutdown
         _active_motors.add(self)
@@ -244,6 +245,9 @@ class DDSM210:
         # Clamp to DDSM210 range
         rpm = max(-210, min(210, rpm))
         
+        # Track the current velocity
+        self._current_velocity = rpm
+        
         try:
             # Ensure motor is in velocity mode
             if self.motor_id not in self.current_mode:
@@ -266,9 +270,25 @@ class DDSM210:
             # Send command
             response = self._send_raw_command(cmd)
             
-            # Update feedback if available
+            # Update feedback with commanded velocity (DDSM210 doesn't return actual feedback)
             if response:
-                feedback = self._parse_feedback(response)
+                feedback = MotorFeedback()
+                feedback.raw_data = response
+                feedback.timestamp = time.time()
+                feedback.velocity = rpm  # Use commanded velocity as feedback
+                feedback.position = 0.0  # DDSM210 doesn't provide position
+                feedback.torque = 0.0    # DDSM210 doesn't provide torque
+                feedback.temperature = 0.0  # DDSM210 doesn't provide temperature
+                
+                # Estimate position change based on velocity
+                if self.motor_id in self.last_feedback:
+                    last_feedback = self.last_feedback[self.motor_id]
+                    time_delta = feedback.timestamp - last_feedback.timestamp
+                    if time_delta > 0 and time_delta < 1.0:
+                        # Position change: RPM * time * 6 degrees/second per RPM
+                        position_delta = rpm * time_delta / 10.0
+                        feedback.position = (last_feedback.position + position_delta) % 360.0
+                
                 self.last_feedback[self.motor_id] = feedback
                 
                 if self.on_feedback:
@@ -316,6 +336,10 @@ class DDSM210:
             # DDSM210 brake command (exact working command)
             brake_cmd = [0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00, 0xD1]
             response = self._send_raw_command(brake_cmd)
+            
+            # Reset current velocity on emergency stop
+            self._current_velocity = 0.0
+            
             return response is not None
             
         except Exception as e:
@@ -326,6 +350,7 @@ class DDSM210:
     def request_feedback(self, motor_id: int) -> Optional[MotorFeedback]:
         """
         Request feedback from motor (DDSM115-compatible interface)
+        For DDSM210, this returns the current commanded velocity as feedback
         
         Args:
             motor_id: Motor ID (ignored for DDSM210)
@@ -337,16 +362,25 @@ class DDSM210:
             return None
         
         try:
-            # Query motor mode to get basic status
-            mode_cmd = [0x01, 0x75, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47]
-            response = self._send_raw_command(mode_cmd)
+            # DDSM210 doesn't provide real feedback, so simulate it
+            feedback = MotorFeedback()
+            feedback.timestamp = time.time()
+            feedback.velocity = self._current_velocity  # Use commanded velocity
+            feedback.position = 0.0  # DDSM210 doesn't provide position
+            feedback.torque = 0.0    # DDSM210 doesn't provide torque
+            feedback.temperature = 0.0  # DDSM210 doesn't provide temperature
             
-            if response:
-                feedback = self._parse_feedback(response)
-                self.last_feedback[self.motor_id] = feedback
-                return feedback
-            else:
-                return None
+            # Estimate position change based on velocity
+            if self.motor_id in self.last_feedback:
+                last_feedback = self.last_feedback[self.motor_id]
+                time_delta = feedback.timestamp - last_feedback.timestamp
+                if time_delta > 0 and time_delta < 1.0:
+                    # Position change: RPM * time * 6 degrees/second per RPM
+                    position_delta = self._current_velocity * time_delta / 10.0
+                    feedback.position = (last_feedback.position + position_delta) % 360.0
+            
+            self.last_feedback[self.motor_id] = feedback
+            return feedback
                 
         except Exception as e:
             if not self.suppress_comm_errors and self.on_error:
@@ -359,17 +393,54 @@ class DDSM210:
         feedback.raw_data = response
         feedback.timestamp = time.time()
         
+        # Initialize with default values
+        feedback.velocity = 0.0
+        feedback.position = 0.0
+        feedback.torque = 0.0
+        feedback.temperature = 0.0
+        
         if len(response) >= 10:
-            # DDSM210 doesn't provide comprehensive feedback like DDSM115
-            # We can only determine if motor is responding and in what mode
-            if len(response) >= 3:
-                if response[1] == 0x75:  # Mode query response
+            try:
+                # DDSM210 response format analysis from our working commands
+                if response[1] == 0x64:  # Velocity command response
+                    # For DDSM210, the response typically echoes back the command
+                    # The actual velocity might be in the response, let's parse it
+                    velocity_raw = (response[2] << 8) | response[3]
+                    if velocity_raw > 32767:  # Handle negative values (two's complement)
+                        velocity_raw -= 65536
+                    feedback.velocity = velocity_raw / 10.0  # Convert to RPM (0.1 RPM resolution)
+                    
+                    # Debug: log the raw response for analysis
+                    if not self.suppress_comm_errors and self.on_error:
+                        hex_response = ' '.join(f'{b:02X}' for b in response)
+                        self.on_error(f"DDSM210 response: {hex_response} -> velocity: {feedback.velocity} RPM")
+                    
+                    # DDSM210 doesn't provide position or torque feedback directly
+                    # But we can estimate position change based on velocity and time
+                    if hasattr(self, 'last_feedback_time') and self.motor_id in self.last_feedback:
+                        time_delta = feedback.timestamp - self.last_feedback_time
+                        if time_delta > 0 and time_delta < 1.0:  # Reasonable time delta
+                            # Estimate position change: RPM * time * 6 degrees/second per RPM
+                            position_delta = feedback.velocity * time_delta / 10.0
+                            if self.motor_id in self.last_feedback:
+                                feedback.position = (self.last_feedback[self.motor_id].position + position_delta) % 360.0
+                    
+                elif response[1] == 0x75:  # Mode query response
                     mode_val = response[2]
                     if mode_val == 0x02:
-                        feedback.velocity = 0.0  # We don't get actual velocity back
-                elif response[1] == 0xA0:  # Mode confirmation
-                    mode_val = response[2] 
-                    feedback.velocity = 0.0
+                        # In velocity mode, try to get current status
+                        feedback.velocity = 0.0  # Default when just querying mode
+                        
+                elif response[1] == 0xA0:  # Mode confirmation response
+                    mode_val = response[2]
+                    feedback.velocity = 0.0  # Mode switch confirmation
+                    
+                # Store timestamp for position estimation
+                self.last_feedback_time = feedback.timestamp
+                
+            except Exception as e:
+                if not self.suppress_comm_errors and self.on_error:
+                    self.on_error(f"Feedback parsing error: {str(e)}")
         
         return feedback
     

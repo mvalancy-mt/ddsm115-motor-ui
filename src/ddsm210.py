@@ -20,7 +20,10 @@ from collections import deque
 
 
 # Import base classes from DDSM115 for compatibility
-from .ddsm115 import MotorFeedback, _active_motors
+try:
+    from .ddsm115 import MotorFeedback, _active_motors
+except ImportError:
+    from ddsm115 import MotorFeedback, _active_motors
 
 
 class DDSM210Mode(IntEnum):

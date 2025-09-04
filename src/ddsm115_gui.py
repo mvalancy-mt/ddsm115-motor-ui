@@ -259,6 +259,16 @@ class SimpleDDSM115GUI:
                        background='#2b2b2b',
                        foreground='#4a9eff')
         
+        # Disabled labelframe style
+        style.configure('Disabled.TLabelframe', 
+                       background='#2b2b2b',
+                       foreground='#666666',
+                       borderwidth=0,
+                       relief='flat')
+        style.configure('Disabled.TLabelframe.Label',
+                       background='#2b2b2b',
+                       foreground='#666666')
+        
         # Configure entry fields with dark theme
         style.configure('TEntry',
                        fieldbackground='#3c3c3c',
@@ -525,13 +535,13 @@ class SimpleDDSM115GUI:
         # No buttons needed - slider handles everything
         
         # Position Control
-        pos_frame = ttk.LabelFrame(left_panel, text="Position Control", padding=5)
-        pos_frame.pack(fill="x", pady=3)
+        self.pos_frame = ttk.LabelFrame(left_panel, text="Position Control", padding=5)
+        self.pos_frame.pack(fill="x", pady=3)
         
-        ttk.Label(pos_frame, text="Position (°):", style='Touch.TLabel').pack()
+        ttk.Label(self.pos_frame, text="Position (°):", style='Touch.TLabel').pack()
         
         # Slider and entry on same row with colored background
-        pos_slider_row = ttk.Frame(pos_frame)
+        pos_slider_row = ttk.Frame(self.pos_frame)
         pos_slider_row.pack(fill="x", pady=5)
         
         # Create colored background for position slider (red)
@@ -555,13 +565,13 @@ class SimpleDDSM115GUI:
         # No buttons needed - slider handles everything
         
         # Current Control
-        curr_frame = ttk.LabelFrame(left_panel, text="Current Control", padding=5)
-        curr_frame.pack(fill="x", pady=3)
+        self.curr_frame = ttk.LabelFrame(left_panel, text="Current Control", padding=5)
+        self.curr_frame.pack(fill="x", pady=3)
         
-        ttk.Label(curr_frame, text="Current (A):", style='Touch.TLabel').pack()
+        ttk.Label(self.curr_frame, text="Current (A):", style='Touch.TLabel').pack()
         
         # Slider and entry on same row with colored background
-        curr_slider_row = ttk.Frame(curr_frame)
+        curr_slider_row = ttk.Frame(self.curr_frame)
         curr_slider_row.pack(fill="x", pady=5)
         
         # Create colored background for current slider (green)
@@ -2087,6 +2097,9 @@ and power disconnection for immediate safety in any uncertain situation.
                 # Update velocity range based on motor type
                 self._update_velocity_range(motor_type.lower())
                 
+                # Update control availability based on motor type
+                self._update_control_availability(motor_type.lower())
+                
                 # Command queue handles feedback monitoring automatically
                 # No need for separate monitoring thread
                 # Auto-detect motor after connection
@@ -2221,8 +2234,9 @@ and power disconnection for immediate safety in any uncertain situation.
         self.status_motor_type.config(text="Not Connected", foreground="#ffcc66")
         self.log_message("🔌 Disconnected")
         
-        # Reset velocity range to default
+        # Reset velocity range and controls to default (DDSM115)
         self._update_velocity_range("ddsm115")
+        self._update_control_availability("ddsm115")
 
     def _update_velocity_range(self, motor_type: str):
         """Update velocity slider range based on motor type"""
@@ -2237,6 +2251,53 @@ and power disconnection for immediate safety in any uncertain situation.
                 self.log_message("🔧 Velocity range set to ±143 RPM (DDSM115)")
         except Exception as e:
             self.log_message(f"⚠️ Error updating velocity range: {e}")
+
+    def _update_control_availability(self, motor_type: str):
+        """Enable/disable position and current controls based on motor type"""
+        try:
+            if motor_type == "ddsm210":
+                # DDSM210 only supports velocity - disable position and current
+                self.pos_frame.configure(text="Position Control (Not Supported)")
+                self.curr_frame.configure(text="Current Control (Not Supported)")
+                self._set_frame_state(self.pos_frame, "disabled")
+                self._set_frame_state(self.curr_frame, "disabled")
+                self.log_message("🔧 Position and current controls disabled (DDSM210 velocity-only)")
+            else:
+                # DDSM115 supports all modes - enable all controls
+                self.pos_frame.configure(text="Position Control")
+                self.curr_frame.configure(text="Current Control")
+                self._set_frame_state(self.pos_frame, "normal")
+                self._set_frame_state(self.curr_frame, "normal")
+                self.log_message("🔧 All control modes enabled (DDSM115)")
+        except Exception as e:
+            self.log_message(f"⚠️ Error updating control availability: {e}")
+    
+    def _set_frame_state(self, frame, state):
+        """Recursively set the state of all widgets in a frame"""
+        try:
+            # Set state for the frame itself
+            if hasattr(frame, 'configure'):
+                if state == "disabled":
+                    frame.configure(style="Disabled.TLabelframe")
+                else:
+                    frame.configure(style="TLabelframe")
+            
+            # Recursively set state for all child widgets
+            for child in frame.winfo_children():
+                widget_class = child.winfo_class()
+                if widget_class in ['TScale', 'Scale']:
+                    child.configure(state=state)
+                elif widget_class in ['TEntry', 'Entry']:
+                    child.configure(state=state)
+                elif widget_class in ['TLabel', 'Label']:
+                    if state == "disabled":
+                        child.configure(foreground="#666666")
+                    else:
+                        child.configure(foreground="#e0e0e0")
+                elif widget_class in ['Frame', 'TFrame']:
+                    self._set_frame_state(child, state)
+        except Exception as e:
+            pass  # Ignore errors for widgets that don't support state changes
 
     def auto_detect_motor(self):
         """Auto-detect motor ID and initialize position slider"""

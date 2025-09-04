@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-DDSM115 Motor Control GUI - Simplified Clean Interface
+DDSM115/210 Motor Control GUI - Simplified Clean Interface
+Supports both DDSM115 and DDSM210 motor types with auto-detection
 Created by Matthew Valancy
 Version 1.0.0
 """
@@ -32,13 +33,14 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 from ddsm115 import DDSM115, MotorMode
+from ddsm210 import DDSM210
 from motor_command_queue import MotorCommandQueue
 from about_tabs import create_about_tab
 
 class SimpleDDSM115GUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("DDSM115 Motor Control v1.0.0")
+        self.root.title("DDSM115/210 Motor Control v1.0.0")
         self.root.geometry("1071x805")  # Increased width to accommodate dual Y-axis torque scale
         self.root.minsize(950, 700)
         
@@ -436,6 +438,12 @@ class SimpleDDSM115GUI:
                                      font=('Arial', 12), background='#2b2b2b')
         self.status_torque.grid(row=0, column=5, sticky="w", padx=5)
         
+        # Motor type display
+        ttk.Label(status_grid, text="Motor:", style='TouchBold.TLabel').grid(row=1, column=0, sticky="w", padx=5)
+        self.status_motor_type = ttk.Label(status_grid, text="Not Connected", foreground="#ffcc66", width=12,
+                                         font=('Arial', 12), background='#2b2b2b')
+        self.status_motor_type.grid(row=1, column=1, sticky="w", padx=5, columnspan=2)
+        
         ttk.Label(status_grid, text="Temperature:", style='TouchBold.TLabel').grid(row=0, column=6, sticky="w", padx=15)
         self.status_temperature = ttk.Label(status_grid, text="N/A", foreground="#ffcc66", width=6,
                                           font=('Arial', 12), background='#2b2b2b')
@@ -499,15 +507,15 @@ class SimpleDDSM115GUI:
         vel_bg = tk.Frame(slider_row, bg="#3a5f9f", height=35)
         vel_bg.pack(side="left", fill="x", expand=True, padx=(0, 5))
         
-        vel_scale = ttk.Scale(vel_bg, from_=-143, to=143, variable=self.velocity_var, 
+        self.vel_scale = ttk.Scale(vel_bg, from_=-143, to=143, variable=self.velocity_var, 
                             orient="horizontal", length=180,
                             style='VelocitySlider.Horizontal.TScale')
         # Velocity is integer - no decimal rounding needed
-        vel_scale.pack(fill="x", padx=5, pady=5)
+        self.vel_scale.pack(fill="x", padx=5, pady=5)
         
         # Bind mouse events for drag start/end detection
-        vel_scale.bind('<Button-1>', lambda e: self._on_slider_press('velocity'))
-        vel_scale.bind('<ButtonRelease-1>', lambda e: self._on_velocity_release())
+        self.vel_scale.bind('<Button-1>', lambda e: self._on_slider_press('velocity'))
+        self.vel_scale.bind('<ButtonRelease-1>', lambda e: self._on_velocity_release())
         
         vel_entry = ttk.Entry(slider_row, textvariable=self.velocity_var, width=6,
                             font=('Arial', 12), validate='key',
@@ -2069,10 +2077,15 @@ and power disconnection for immediate safety in any uncertain situation.
             self.motor_controller.on_command_sent = self._on_command_sent
             
             if self.motor_controller.connect():
+                motor_type = self.motor_controller.get_motor_type().upper()
                 self.connection_status.config(text="Connected", foreground="green")
-                self.log_message(f"✅ Connected to {port_device}")
+                self.log_message(f"✅ Connected to {port_device} ({motor_type} detected)")
                 self.estop_button.config(state="normal")  # Enable E-stop button
                 self.status_conn_label.config(text="⚡ CONNECTED", fg="#66ff66")
+                self.status_motor_type.config(text=motor_type, foreground="#66ff66")
+                
+                # Update velocity range based on motor type
+                self._update_velocity_range(motor_type.lower())
                 
                 # Command queue handles feedback monitoring automatically
                 # No need for separate monitoring thread
@@ -2205,7 +2218,25 @@ and power disconnection for immediate safety in any uncertain situation.
         self.connection_status.config(text="Disconnected", foreground="red")
         self.estop_button.config(state="disabled")  # Disable E-stop button
         self.status_conn_label.config(text="⚡ DISCONNECTED", fg="#ff6666")
+        self.status_motor_type.config(text="Not Connected", foreground="#ffcc66")
         self.log_message("🔌 Disconnected")
+        
+        # Reset velocity range to default
+        self._update_velocity_range("ddsm115")
+
+    def _update_velocity_range(self, motor_type: str):
+        """Update velocity slider range based on motor type"""
+        try:
+            if motor_type == "ddsm210":
+                # DDSM210: -210 to 210 RPM
+                self.vel_scale.config(from_=-210, to=210)
+                self.log_message("🔧 Velocity range set to ±210 RPM (DDSM210)")
+            else:
+                # DDSM115: -143 to 143 RPM (default)  
+                self.vel_scale.config(from_=-143, to=143)
+                self.log_message("🔧 Velocity range set to ±143 RPM (DDSM115)")
+        except Exception as e:
+            self.log_message(f"⚠️ Error updating velocity range: {e}")
 
     def auto_detect_motor(self):
         """Auto-detect motor ID and initialize position slider"""

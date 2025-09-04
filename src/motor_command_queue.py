@@ -11,6 +11,7 @@ from typing import Optional, Callable, Any, Dict
 from dataclasses import dataclass
 from enum import Enum
 from ddsm115 import DDSM115, MotorMode, MotorFeedback
+from ddsm210 import DDSM210
 
 class CommandType(Enum):
     SET_VELOCITY = "set_velocity"
@@ -36,8 +37,22 @@ class MotorCommand:
             self.timestamp = time.time()
 
 class MotorCommandQueue:
-    def __init__(self, port: str = "/dev/ttyUSB0"):
-        self.motor = DDSM115(port=port, suppress_comm_errors=False)
+    def __init__(self, port: str = "/dev/ttyUSB0", motor_type: str = "auto"):
+        # Motor type can be "ddsm115", "ddsm210", or "auto" for detection
+        self.motor_type = motor_type
+        self.motor = None
+        self.port = port
+        
+        # Initialize motor based on type
+        if motor_type == "ddsm115":
+            self.motor = DDSM115(port=port, suppress_comm_errors=False)
+        elif motor_type == "ddsm210":
+            self.motor = DDSM210(port=port, suppress_comm_errors=False)
+        elif motor_type == "auto":
+            # Will be detected during connection
+            pass
+        else:
+            raise ValueError(f"Unknown motor type: {motor_type}")
         self.command_queue = queue.PriorityQueue()
         self.feedback_queue = queue.Queue()
         
@@ -79,7 +94,12 @@ class MotorCommandQueue:
         
     def connect(self) -> bool:
         """Connect to motor and start processing"""
-        if not self.motor.connect():
+        # Auto-detect motor type if needed
+        if self.motor_type == "auto":
+            if not self._detect_motor_type():
+                return False
+        
+        if not self.motor or not self.motor.connect():
             return False
         
         self.running = True
@@ -92,6 +112,48 @@ class MotorCommandQueue:
         self.feedback_thread.start()
         
         return True
+    
+    def _detect_motor_type(self) -> bool:
+        """Auto-detect motor type by trying both DDSM115 and DDSM210"""
+        # Try DDSM210 first (it uses ACM ports typically)
+        if "/dev/ttyACM" in self.port:
+            try:
+                test_motor = DDSM210(port=self.port, suppress_comm_errors=True)
+                if test_motor.connect():
+                    test_motor.disconnect()
+                    self.motor = DDSM210(port=self.port, suppress_comm_errors=False)
+                    self.motor_type = "ddsm210"
+                    return True
+            except Exception:
+                pass
+        
+        # Try DDSM115
+        try:
+            test_motor = DDSM115(port=self.port, suppress_comm_errors=True)
+            if test_motor.connect():
+                test_motor.disconnect()
+                self.motor = DDSM115(port=self.port, suppress_comm_errors=False)
+                self.motor_type = "ddsm115"
+                return True
+        except Exception:
+            pass
+        
+        # Try DDSM210 on USB ports as fallback
+        try:
+            test_motor = DDSM210(port=self.port, suppress_comm_errors=True)
+            if test_motor.connect():
+                test_motor.disconnect()
+                self.motor = DDSM210(port=self.port, suppress_comm_errors=False)
+                self.motor_type = "ddsm210"
+                return True
+        except Exception:
+            pass
+            
+        return False
+    
+    def get_motor_type(self) -> str:
+        """Get the detected motor type"""
+        return self.motor_type
     
     def disconnect(self):
         """Disconnect and stop processing"""

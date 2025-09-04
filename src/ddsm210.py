@@ -280,14 +280,8 @@ class DDSM210:
                 feedback.torque = 0.0    # DDSM210 doesn't provide torque
                 feedback.temperature = 0.0  # DDSM210 doesn't provide temperature
                 
-                # Estimate position change based on velocity
-                if self.motor_id in self.last_feedback:
-                    last_feedback = self.last_feedback[self.motor_id]
-                    time_delta = feedback.timestamp - last_feedback.timestamp
-                    if time_delta > 0 and time_delta < 1.0:
-                        # Position change: RPM * time * 6 degrees/second per RPM
-                        position_delta = rpm * time_delta / 10.0
-                        feedback.position = (last_feedback.position + position_delta) % 360.0
+                # DDSM210 doesn't provide position feedback - always show 0
+                feedback.position = 0.0
                 
                 self.last_feedback[self.motor_id] = feedback
                 
@@ -370,14 +364,9 @@ class DDSM210:
             feedback.torque = 0.0    # DDSM210 doesn't provide torque
             feedback.temperature = 0.0  # DDSM210 doesn't provide temperature
             
-            # Estimate position change based on velocity
-            if self.motor_id in self.last_feedback:
-                last_feedback = self.last_feedback[self.motor_id]
-                time_delta = feedback.timestamp - last_feedback.timestamp
-                if time_delta > 0 and time_delta < 1.0:
-                    # Position change: RPM * time * 6 degrees/second per RPM
-                    position_delta = self._current_velocity * time_delta / 10.0
-                    feedback.position = (last_feedback.position + position_delta) % 360.0
+            # For DDSM210, disable position estimation since it's not accurate
+            # and the motor doesn't provide real position feedback
+            feedback.position = 0.0  # Always show 0° - no position control
             
             self.last_feedback[self.motor_id] = feedback
             return feedback
@@ -410,20 +399,7 @@ class DDSM210:
                         velocity_raw -= 65536
                     feedback.velocity = velocity_raw / 10.0  # Convert to RPM (0.1 RPM resolution)
                     
-                    # Debug: log the raw response for analysis
-                    if not self.suppress_comm_errors and self.on_error:
-                        hex_response = ' '.join(f'{b:02X}' for b in response)
-                        self.on_error(f"DDSM210 response: {hex_response} -> velocity: {feedback.velocity} RPM")
-                    
-                    # DDSM210 doesn't provide position or torque feedback directly
-                    # But we can estimate position change based on velocity and time
-                    if hasattr(self, 'last_feedback_time') and self.motor_id in self.last_feedback:
-                        time_delta = feedback.timestamp - self.last_feedback_time
-                        if time_delta > 0 and time_delta < 1.0:  # Reasonable time delta
-                            # Estimate position change: RPM * time * 6 degrees/second per RPM
-                            position_delta = feedback.velocity * time_delta / 10.0
-                            if self.motor_id in self.last_feedback:
-                                feedback.position = (self.last_feedback[self.motor_id].position + position_delta) % 360.0
+                    # DDSM210 response parsing (currently not used - we track commanded velocity instead)
                     
                 elif response[1] == 0x75:  # Mode query response
                     mode_val = response[2]
@@ -434,9 +410,6 @@ class DDSM210:
                 elif response[1] == 0xA0:  # Mode confirmation response
                     mode_val = response[2]
                     feedback.velocity = 0.0  # Mode switch confirmation
-                    
-                # Store timestamp for position estimation
-                self.last_feedback_time = feedback.timestamp
                 
             except Exception as e:
                 if not self.suppress_comm_errors and self.on_error:

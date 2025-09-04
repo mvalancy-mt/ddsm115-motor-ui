@@ -67,6 +67,7 @@ class DDSM210:
         # Callbacks - same interface as DDSM115
         self.on_feedback: Optional[Callable[[int, MotorFeedback], None]] = None
         self.on_error: Optional[Callable[[str], None]] = None
+        self.on_tx: Optional[Callable[[], None]] = None
         
         # State
         self.current_mode: Dict[int, DDSM210Mode] = {}
@@ -187,6 +188,10 @@ class DDSM210:
             # Send command
             self.serial_port.write(bytes(command))
             self.serial_port.flush()
+            
+            # Increment TX counter if callback is available
+            if self.on_tx:
+                self.on_tx()
             
             # Read response (DDSM210 always sends 10-byte responses when available)
             response = self.serial_port.read(10)
@@ -360,17 +365,28 @@ class DDSM210:
             if self._current_velocity == 0.0:
                 # Send mode query command as a "ping" to check if motor is responsive
                 mode_cmd = [0x01, 0x75, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47]
+                
+                # Debug: log ping attempt
+                if self.on_error:
+                    self.on_error(f"🏓 DDSM210 sending ping command (velocity={self._current_velocity})")
+                
                 response = self._send_raw_command(mode_cmd)
                 
                 if response and len(response) >= 3:
                     # Motor responded - it's alive!
                     if response[1] == 0x75 and response[2] == 0x02:
                         # Confirmed in velocity mode and responding
-                        pass  # Motor is alive and responding
+                        if not self.suppress_comm_errors and self.on_error:
+                            hex_resp = ' '.join(f'{b:02X}' for b in response[:4])
+                            self.on_error(f"✅ DDSM210 ping OK: {hex_resp}")
+                    else:
+                        if not self.suppress_comm_errors and self.on_error:
+                            hex_resp = ' '.join(f'{b:02X}' for b in response)
+                            self.on_error(f"⚠️ DDSM210 ping unexpected response: {hex_resp}")
                 else:
                     # No response - motor might be disconnected
                     if not self.suppress_comm_errors and self.on_error:
-                        self.on_error("⚠️ Motor ping failed - connection may be lost")
+                        self.on_error("❌ DDSM210 ping failed - no response")
             
             # Return current motor state feedback
             feedback = MotorFeedback()
@@ -470,6 +486,9 @@ class DDSM210:
                 # - 0.1s when motor is running (for real-time feedback)
                 if self._current_velocity == 0.0:
                     sleep_time = 1.0  # 1 second ping when idle
+                    # Debug: log monitoring when idle
+                    if self.on_error:
+                        self.on_error(f"⏱️ DDSM210 monitoring loop - idle mode, sleeping {sleep_time}s")
                 else:
                     sleep_time = self._monitor_interval  # Fast updates when running
                     

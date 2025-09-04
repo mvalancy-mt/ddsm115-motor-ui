@@ -405,8 +405,9 @@ class SimpleDDSM115GUI:
         id_row.pack(fill="x", pady=2)
         
         ttk.Label(id_row, text="Motor ID:", style='Touch.TLabel').pack(side="left", padx=2)
-        ttk.Spinbox(id_row, from_=1, to=10, textvariable=self.motor_id_var, width=5, 
-                   style='Touch.TSpinbox', font=('Arial', 11)).pack(side="left", padx=5)
+        self.motor_id_spinbox = ttk.Spinbox(id_row, from_=1, to=10, textvariable=self.motor_id_var, width=5, 
+                   style='Touch.TSpinbox', font=('Arial', 11))
+        self.motor_id_spinbox.pack(side="left", padx=5)
         ttk.Button(id_row, text="Auto Detect", command=self.auto_detect_motor, 
                   style='Touch.TButton').pack(side="left", padx=5)
         ttk.Button(id_row, text="Set ID", command=self.set_motor_id, 
@@ -2085,6 +2086,7 @@ and power disconnection for immediate safety in any uncertain situation.
             self.motor_controller.on_feedback = self._on_motor_feedback
             self.motor_controller.on_error = self._on_motor_error
             self.motor_controller.on_command_sent = self._on_command_sent
+            self.motor_controller.on_tx = self._on_tx
             
             if self.motor_controller.connect():
                 motor_type = self.motor_controller.get_motor_type().upper()
@@ -2221,6 +2223,13 @@ and power disconnection for immediate safety in any uncertain situation.
             self.last_tx_time = time.time()
         except Exception:
             pass  # Ignore time update errors
+    
+    def _on_tx(self):
+        """Handle TX event - increment TX counter"""
+        try:
+            self.tx_count += 1
+        except Exception:
+            pass  # Ignore counter update errors
 
     def disconnect_motor(self):
         """Disconnect from motor"""
@@ -2261,14 +2270,24 @@ and power disconnection for immediate safety in any uncertain situation.
                 self.curr_frame.configure(text="Current Control (Not Supported)")
                 self._set_frame_state(self.pos_frame, "disabled")
                 self._set_frame_state(self.curr_frame, "disabled")
+                
+                # DDSM210 uses fixed motor ID 1 - disable motor ID spinbox
+                self.motor_id_spinbox.configure(state="disabled")
+                
                 self.log_message("🔧 Position and current controls disabled (DDSM210 velocity-only)")
+                self.log_message("🔧 Motor ID locked to 1 (DDSM210 fixed ID)")
             else:
                 # DDSM115 supports all modes - enable all controls
                 self.pos_frame.configure(text="Position Control")
                 self.curr_frame.configure(text="Current Control")
                 self._set_frame_state(self.pos_frame, "normal")
                 self._set_frame_state(self.curr_frame, "normal")
+                
+                # DDSM115 supports multiple motor IDs - enable spinbox
+                self.motor_id_spinbox.configure(state="normal")
+                
                 self.log_message("🔧 All control modes enabled (DDSM115)")
+                self.log_message("🔧 Motor ID selection enabled (DDSM115 multi-motor)")
         except Exception as e:
             self.log_message(f"⚠️ Error updating control availability: {e}")
     

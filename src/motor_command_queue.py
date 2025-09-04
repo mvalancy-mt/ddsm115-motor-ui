@@ -79,6 +79,7 @@ class MotorCommandQueue:
         # Callbacks
         self.on_feedback: Optional[Callable[[int, MotorFeedback], None]] = None
         self.on_error: Optional[Callable[[str], None]] = None
+        self.on_tx: Optional[Callable[[], None]] = None
         self.on_command_sent: Optional[Callable[[], None]] = None  # Called when command is sent
         
         # Rate limiting
@@ -122,6 +123,8 @@ class MotorCommandQueue:
                 if test_motor.connect():
                     test_motor.disconnect()
                     self.motor = DDSM210(port=self.port, suppress_comm_errors=False)
+                    # Set up callbacks
+                    self.motor.on_tx = self.on_tx
                     self.motor_type = "ddsm210"
                     return True
             except Exception:
@@ -144,6 +147,8 @@ class MotorCommandQueue:
             if test_motor.connect():
                 test_motor.disconnect()
                 self.motor = DDSM210(port=self.port, suppress_comm_errors=False)
+                # Set up callbacks
+                self.motor.on_tx = self.on_tx
                 self.motor_type = "ddsm210"
                 return True
         except Exception:
@@ -619,9 +624,18 @@ class MotorCommandQueue:
                     continue
                 
                 if not motor_ids:
-                    time.sleep(0.1)  # No motors registered yet
-                    consecutive_errors = 0
-                    continue
+                    # No motors registered yet - add DDSM210 default motor ID if needed
+                    if self.motor_type == "ddsm210":
+                        # Register DDSM210 motor ID 1 if not already registered
+                        if 1 not in self.current_mode:
+                            self.current_mode[1] = None  # Register motor ID 1
+                            if self.on_error:
+                                self.on_error("⚙️ MotorCommandQueue: Registered DDSM210 motor ID 1 for feedback")
+                        motor_ids = [1]  # DDSM210 always uses motor ID 1
+                    else:
+                        time.sleep(0.1)  # No motors registered yet
+                        consecutive_errors = 0
+                        continue
                 
                 for motor_id in motor_ids:
                     if not self.running:  # Check if we should stop

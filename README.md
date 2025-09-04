@@ -1,8 +1,8 @@
-# DDSM115 Motor Control GUI
+# DDSM115/210 Motor Control GUI
 
-A complete GUI application for controlling DDSM115 servo motors via RS485 communication.
+A complete GUI application for controlling DDSM115 and DDSM210 servo motors with automatic motor type detection.
 
-![Motor Control](https://img.shields.io/badge/Motor-DDSM115-blue) ![Python](https://img.shields.io/badge/Python-3.8+-green) ![License](https://img.shields.io/badge/License-MIT-orange)
+![Motor Control](https://img.shields.io/badge/Motors-DDSM115%2F210-blue) ![Python](https://img.shields.io/badge/Python-3.8+-green) ![License](https://img.shields.io/badge/License-MIT-orange)
 
 ## 📸 Screenshots
 
@@ -25,19 +25,28 @@ A complete GUI application for controlling DDSM115 servo motors via RS485 commun
 
 ## ✨ Features
 
-- **Full Motor Control**: Velocity, current, and position control modes
+- **Dual Motor Support**: Full support for both DDSM115 and DDSM210 motors
+- **Automatic Detection**: Automatically detects motor type and configures interface
+- **Smart Control**: Adaptive control based on motor capabilities
+  - DDSM115: Velocity, current, and position control modes  
+  - DDSM210: Velocity control with heartbeat monitoring
 - **Real-time Monitoring**: Live status updates and graphing
-- **Auto-detection**: Automatically finds motors on connection
-- **Safety Features**: Emergency stop, communication monitoring
+- **Safety Features**: Emergency stop, communication monitoring, heartbeat system
 - **User-friendly Interface**: Clean 3-tab interface with intuitive controls
 - **Touch-friendly Design**: Large buttons and sliders optimized for touch screens
 - **Diagnostic Tools**: Built-in motor testing and diagnostic functions
 
 ## 🔧 Hardware Requirements
 
-- **Motor**: DDSM115 Direct Drive Servo Motor (Waveshare)
-- **Interface**: USB to RS485 adapter
-- **Power**: 12-24V DC supply for motor (18V recommended)
+- **Motors**: 
+  - DDSM115 Direct Drive Servo Motor (Waveshare) - Full position/velocity/current control
+  - DDSM210 Direct Drive Servo Motor (Waveshare) - Velocity control only
+- **Interface**: 
+  - DDSM115: USB to RS485 adapter (typically /dev/ttyUSB*)
+  - DDSM210: Direct USB connection (typically /dev/ttyACM*)
+- **Power**: 
+  - DDSM115: 12-24V DC supply (18V recommended)
+  - DDSM210: 24V DC supply
 - **Computer**: Any computer with USB port running Python 3.8+
 
 ## 🚀 Quick Start
@@ -85,8 +94,10 @@ chmod +x scripts/setup.sh
 
 ### 2. Control Modes
 
+**DDSM115 Control Modes:**
+
 **🏃 Velocity Control**:
-- Range: -330 to 330 RPM
+- Range: -143 to 143 RPM
 - Good for continuous rotation applications
 
 **⚡ Current Control**:
@@ -96,6 +107,13 @@ chmod +x scripts/setup.sh
 **📍 Position Control**:
 - Range: 0° to 360°
 - Precise positioning with holding
+
+**DDSM210 Control Modes:**
+
+**🏃 Velocity Control Only**:
+- Range: -210 to 210 RPM
+- Built-in heartbeat monitoring when idle
+- Position and current controls disabled (motor limitation)
 
 ### 3. Safety Features
 
@@ -117,9 +135,9 @@ chmod +x scripts/setup.sh
 - **Protocol**: Custom 10-byte with CRC8
 
 ### Motor Settings
-- Motors use IDs 1-10 (auto-detected)
-- Multiple motors supported on same bus
-- Each motor needs unique ID
+- **DDSM115**: Motors use IDs 1-10 (auto-detected), multiple motors supported
+- **DDSM210**: Fixed motor ID 1 (motor ID selection disabled)
+- Automatic motor type detection and interface adaptation
 
 ## 🔍 Troubleshooting
 
@@ -197,11 +215,12 @@ ddsm115-motor-control/
 ├── README.md            # This documentation
 ├── .gitignore           # Git ignore rules
 ├── src/                 # Source code
-│   ├── ddsm115.py           # Core motor control library
-│   ├── ddsm115_gui.py       # GUI application
+│   ├── ddsm115.py           # DDSM115 motor control library
+│   ├── ddsm210.py           # DDSM210 motor control library
+│   ├── ddsm115_gui.py       # GUI application (supports both motors)
 │   ├── example_cli.py       # Command-line example
 │   ├── motor_diagnostic.py  # Diagnostic tools
-│   ├── motor_command_queue.py # Command queue system
+│   ├── motor_command_queue.py # Command queue system with auto-detection
 │   └── gui_diagnostic.py    # GUI diagnostic tools
 ├── tests/               # Test suite
 │   ├── test_*.py            # Unit tests
@@ -217,7 +236,7 @@ ddsm115-motor-control/
 
 ## 🔧 Library Usage (Without GUI)
 
-### Basic Example
+### Basic Example (DDSM115)
 ```python
 from src.ddsm115 import DDSM115
 
@@ -240,6 +259,43 @@ if motor.connect():
     # Stop and disconnect
     motor.emergency_stop(motor_id)
     motor.disconnect()
+```
+
+### Basic Example (DDSM210)
+```python
+from src.ddsm210 import DDSM210
+
+# Create motor controller
+motor = DDSM210(port="/dev/ttyACM0")
+
+# Connect
+if motor.connect():
+    # DDSM210 always uses motor ID 1
+    motor.set_velocity(1, 150)  # 150 RPM
+    
+    # Get feedback (includes heartbeat when idle)
+    feedback = motor.request_feedback(1)
+    print(f"Velocity: {feedback.velocity} RPM")
+    
+    # Stop and disconnect
+    motor.set_velocity(1, 0)
+    motor.disconnect()
+```
+
+### Auto-Detection Example (Recommended)
+```python
+from src.motor_command_queue import MotorCommandQueue
+
+# Auto-detect motor type
+motor_queue = MotorCommandQueue(port="auto")  # Will detect port and motor type
+
+if motor_queue.connect():
+    motor_type = motor_queue.get_motor_type()
+    print(f"Detected: {motor_type.upper()}")
+    
+    # Control works regardless of motor type
+    motor_queue.set_velocity(1, 100)
+    motor_queue.disconnect()
 ```
 
 ### Advanced Example with Callbacks

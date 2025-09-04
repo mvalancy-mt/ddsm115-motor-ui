@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-DDSM115 Motor Control GUI - Simplified Clean Interface
+DDSM115/210 Motor Control GUI - Simplified Clean Interface
+Supports both DDSM115 and DDSM210 motor types with auto-detection
 Created by Matthew Valancy
 Version 1.0.0
 """
@@ -32,27 +33,25 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 from ddsm115 import DDSM115, MotorMode
+from ddsm210 import DDSM210
 from motor_command_queue import MotorCommandQueue
 from about_tabs import create_about_tab
 
 class SimpleDDSM115GUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("DDSM115 Motor Control v1.0.0")
-        self.root.geometry("1071x805")  # Increased width to accommodate dual Y-axis torque scale
-        self.root.minsize(950, 700)
+        self.root.title("DDSM115/210 Motor Control v1.0.0")
+        self.root.geometry("1400x900")  # Larger size for better usability
+        self.root.minsize(1200, 800)
         
         # Set dark background
         self.root.configure(bg='#2b2b2b')
         
-        # Create custom window controls for touch-friendly operation
-        self.create_custom_window_controls()
+        # Keep standard window decorations for desktop use
+        # Removed overrideredirect to allow normal window controls
+        # self.root.overrideredirect(True)  # Commented out for desktop compatibility
         
-        # Remove standard window decorations for touch-only interface
-        # This hides the original OS window buttons since we have custom ones
-        self.root.overrideredirect(True)
-        
-        # Configure touch-friendly styles
+        # Configure desktop-friendly styles
         self.setup_touch_styles()
         
         # Motor controller
@@ -142,7 +141,7 @@ class SimpleDDSM115GUI:
         style = ttk.Style()
         
         # Set dark theme
-        style.theme_use('alt')
+        style.theme_use('clam')  # Better theme for desktop
         
         # Configure dark colors with subtle selection
         style.configure('.', 
@@ -156,33 +155,34 @@ class SimpleDDSM115GUI:
         
         # Configure larger buttons with dark theme
         style.configure('Touch.TButton', 
-                       padding=(15, 10),
+                       padding=(20, 15),  # Increased padding
+                       font=('Arial', 12),  # Larger font
                        background='#4a4a4a',
                        foreground='#e0e0e0',
                        focuscolor='#4a9eff',
-                       borderwidth=0,
-                       relief='flat')
+                       borderwidth=1,
+                       relief='raised')
         style.map('Touch.TButton',
                  background=[('active', '#5a5a5a'), ('pressed', '#3a3a3a')])
         
         style.configure('Action.TButton', 
-                       padding=(20, 15), 
-                       font=('Arial', 11, 'bold'),
+                       padding=(25, 20),  # Larger padding
+                       font=('Arial', 14, 'bold'),  # Larger font
                        background='#4a7c4a',
                        foreground='#ffffff',
-                       borderwidth=0,
-                       relief='flat')
+                       borderwidth=2,
+                       relief='raised')
         style.map('Action.TButton',
                  background=[('active', '#5a8c5a'), ('pressed', '#3a6c3a')])
         
-        # Configure smaller control buttons
+        # Configure control buttons
         style.configure('Control.TButton', 
-                       padding=(10, 5), 
-                       font=('Arial', 10),
+                       padding=(15, 10),  # Increased padding
+                       font=('Arial', 11),  # Larger font
                        background='#4a4a4a',
                        foreground='#e0e0e0',
-                       borderwidth=0,
-                       relief='flat')
+                       borderwidth=1,
+                       relief='raised')
         
         # Configure larger checkbuttons with dark theme
         style.configure('Touch.TCheckbutton', 
@@ -200,40 +200,42 @@ class SimpleDDSM115GUI:
         
         # Configure larger labels with dark theme
         style.configure('Touch.TLabel', 
-                       font=('Arial', 11),
+                       font=('Arial', 13),  # Larger font
                        background='#2b2b2b',
                        foreground='#e0e0e0')
         style.configure('TouchBold.TLabel', 
-                       font=('Arial', 11, 'bold'),
+                       font=('Arial', 13, 'bold'),  # Larger font
                        background='#2b2b2b',
                        foreground='#e0e0e0')
         
         # Configure larger combobox with dark theme
         style.configure('Touch.TCombobox', 
-                       arrowsize=20,
+                       arrowsize=25,  # Larger arrow
                        fieldbackground='#3c3c3c',
                        background='#4a4a4a',
                        foreground='#e0e0e0',
-                       borderwidth=0,
-                       relief='flat')
+                       font=('Arial', 12),  # Larger font
+                       borderwidth=1,
+                       relief='solid')
         
         # Configure larger spinbox with dark theme
         style.configure('Touch.TSpinbox', 
-                       arrowsize=20,
+                       arrowsize=25,  # Larger arrow
                        fieldbackground='#3c3c3c',
                        background='#4a4a4a',
                        foreground='#e0e0e0',
-                       borderwidth=0,
-                       relief='flat')
+                       font=('Arial', 12),  # Larger font
+                       borderwidth=1,
+                       relief='solid')
         
         # Configure notebook tabs with dark theme
         style.configure('TNotebook.Tab', 
-                       padding=(20, 10), 
-                       font=('Arial', 11),
+                       padding=(25, 15),  # Larger padding
+                       font=('Arial', 14, 'bold'),  # Larger font
                        background='#3c3c3c',
                        foreground='#e0e0e0',
-                       borderwidth=0,
-                       relief='flat')
+                       borderwidth=1,
+                       relief='raised')
         style.map('TNotebook.Tab',
                  background=[('selected', '#4a9eff')])
         
@@ -256,6 +258,16 @@ class SimpleDDSM115GUI:
         style.configure('TLabelFrame.Label',
                        background='#2b2b2b',
                        foreground='#4a9eff')
+        
+        # Disabled labelframe style
+        style.configure('Disabled.TLabelframe', 
+                       background='#2b2b2b',
+                       foreground='#666666',
+                       borderwidth=0,
+                       relief='flat')
+        style.configure('Disabled.TLabelframe.Label',
+                       background='#2b2b2b',
+                       foreground='#666666')
         
         # Configure entry fields with dark theme
         style.configure('TEntry',
@@ -393,8 +405,9 @@ class SimpleDDSM115GUI:
         id_row.pack(fill="x", pady=2)
         
         ttk.Label(id_row, text="Motor ID:", style='Touch.TLabel').pack(side="left", padx=2)
-        ttk.Spinbox(id_row, from_=1, to=10, textvariable=self.motor_id_var, width=5, 
-                   style='Touch.TSpinbox', font=('Arial', 11)).pack(side="left", padx=5)
+        self.motor_id_spinbox = ttk.Spinbox(id_row, from_=1, to=10, textvariable=self.motor_id_var, width=5, 
+                   style='Touch.TSpinbox', font=('Arial', 11))
+        self.motor_id_spinbox.pack(side="left", padx=5)
         ttk.Button(id_row, text="Auto Detect", command=self.auto_detect_motor, 
                   style='Touch.TButton').pack(side="left", padx=5)
         ttk.Button(id_row, text="Set ID", command=self.set_motor_id, 
@@ -435,6 +448,12 @@ class SimpleDDSM115GUI:
         self.status_torque = ttk.Label(status_grid, text="0 A", foreground="#66ffcc", width=8,
                                      font=('Arial', 12), background='#2b2b2b')
         self.status_torque.grid(row=0, column=5, sticky="w", padx=5)
+        
+        # Motor type display
+        ttk.Label(status_grid, text="Motor:", style='TouchBold.TLabel').grid(row=1, column=0, sticky="w", padx=5)
+        self.status_motor_type = ttk.Label(status_grid, text="Not Connected", foreground="#ffcc66", width=12,
+                                         font=('Arial', 12), background='#2b2b2b')
+        self.status_motor_type.grid(row=1, column=1, sticky="w", padx=5, columnspan=2)
         
         ttk.Label(status_grid, text="Temperature:", style='TouchBold.TLabel').grid(row=0, column=6, sticky="w", padx=15)
         self.status_temperature = ttk.Label(status_grid, text="N/A", foreground="#ffcc66", width=6,
@@ -499,15 +518,15 @@ class SimpleDDSM115GUI:
         vel_bg = tk.Frame(slider_row, bg="#3a5f9f", height=35)
         vel_bg.pack(side="left", fill="x", expand=True, padx=(0, 5))
         
-        vel_scale = ttk.Scale(vel_bg, from_=-143, to=143, variable=self.velocity_var, 
+        self.vel_scale = ttk.Scale(vel_bg, from_=-143, to=143, variable=self.velocity_var, 
                             orient="horizontal", length=180,
                             style='VelocitySlider.Horizontal.TScale')
         # Velocity is integer - no decimal rounding needed
-        vel_scale.pack(fill="x", padx=5, pady=5)
+        self.vel_scale.pack(fill="x", padx=5, pady=5)
         
         # Bind mouse events for drag start/end detection
-        vel_scale.bind('<Button-1>', lambda e: self._on_slider_press('velocity'))
-        vel_scale.bind('<ButtonRelease-1>', lambda e: self._on_velocity_release())
+        self.vel_scale.bind('<Button-1>', lambda e: self._on_slider_press('velocity'))
+        self.vel_scale.bind('<ButtonRelease-1>', lambda e: self._on_velocity_release())
         
         vel_entry = ttk.Entry(slider_row, textvariable=self.velocity_var, width=6,
                             font=('Arial', 12), validate='key',
@@ -517,13 +536,13 @@ class SimpleDDSM115GUI:
         # No buttons needed - slider handles everything
         
         # Position Control
-        pos_frame = ttk.LabelFrame(left_panel, text="Position Control", padding=5)
-        pos_frame.pack(fill="x", pady=3)
+        self.pos_frame = ttk.LabelFrame(left_panel, text="Position Control", padding=5)
+        self.pos_frame.pack(fill="x", pady=3)
         
-        ttk.Label(pos_frame, text="Position (°):", style='Touch.TLabel').pack()
+        ttk.Label(self.pos_frame, text="Position (°):", style='Touch.TLabel').pack()
         
         # Slider and entry on same row with colored background
-        pos_slider_row = ttk.Frame(pos_frame)
+        pos_slider_row = ttk.Frame(self.pos_frame)
         pos_slider_row.pack(fill="x", pady=5)
         
         # Create colored background for position slider (red)
@@ -547,13 +566,13 @@ class SimpleDDSM115GUI:
         # No buttons needed - slider handles everything
         
         # Current Control
-        curr_frame = ttk.LabelFrame(left_panel, text="Current Control", padding=5)
-        curr_frame.pack(fill="x", pady=3)
+        self.curr_frame = ttk.LabelFrame(left_panel, text="Current Control", padding=5)
+        self.curr_frame.pack(fill="x", pady=3)
         
-        ttk.Label(curr_frame, text="Current (A):", style='Touch.TLabel').pack()
+        ttk.Label(self.curr_frame, text="Current (A):", style='Touch.TLabel').pack()
         
         # Slider and entry on same row with colored background
-        curr_slider_row = ttk.Frame(curr_frame)
+        curr_slider_row = ttk.Frame(self.curr_frame)
         curr_slider_row.pack(fill="x", pady=5)
         
         # Create colored background for current slider (green)
@@ -2067,12 +2086,21 @@ and power disconnection for immediate safety in any uncertain situation.
             self.motor_controller.on_feedback = self._on_motor_feedback
             self.motor_controller.on_error = self._on_motor_error
             self.motor_controller.on_command_sent = self._on_command_sent
+            self.motor_controller.on_tx = self._on_tx
             
             if self.motor_controller.connect():
+                motor_type = self.motor_controller.get_motor_type().upper()
                 self.connection_status.config(text="Connected", foreground="green")
-                self.log_message(f"✅ Connected to {port_device}")
+                self.log_message(f"✅ Connected to {port_device} ({motor_type} detected)")
                 self.estop_button.config(state="normal")  # Enable E-stop button
                 self.status_conn_label.config(text="⚡ CONNECTED", fg="#66ff66")
+                self.status_motor_type.config(text=motor_type, foreground="#66ff66")
+                
+                # Update velocity range based on motor type
+                self._update_velocity_range(motor_type.lower())
+                
+                # Update control availability based on motor type
+                self._update_control_availability(motor_type.lower())
                 
                 # Command queue handles feedback monitoring automatically
                 # No need for separate monitoring thread
@@ -2195,6 +2223,13 @@ and power disconnection for immediate safety in any uncertain situation.
             self.last_tx_time = time.time()
         except Exception:
             pass  # Ignore time update errors
+    
+    def _on_tx(self):
+        """Handle TX event - increment TX counter"""
+        try:
+            self.tx_count += 1
+        except Exception:
+            pass  # Ignore counter update errors
 
     def disconnect_motor(self):
         """Disconnect from motor"""
@@ -2205,7 +2240,83 @@ and power disconnection for immediate safety in any uncertain situation.
         self.connection_status.config(text="Disconnected", foreground="red")
         self.estop_button.config(state="disabled")  # Disable E-stop button
         self.status_conn_label.config(text="⚡ DISCONNECTED", fg="#ff6666")
+        self.status_motor_type.config(text="Not Connected", foreground="#ffcc66")
         self.log_message("🔌 Disconnected")
+        
+        # Reset velocity range and controls to default (DDSM115)
+        self._update_velocity_range("ddsm115")
+        self._update_control_availability("ddsm115")
+
+    def _update_velocity_range(self, motor_type: str):
+        """Update velocity slider range based on motor type"""
+        try:
+            if motor_type == "ddsm210":
+                # DDSM210: -210 to 210 RPM
+                self.vel_scale.config(from_=-210, to=210)
+                self.log_message("🔧 Velocity range set to ±210 RPM (DDSM210)")
+            else:
+                # DDSM115: -143 to 143 RPM (default)  
+                self.vel_scale.config(from_=-143, to=143)
+                self.log_message("🔧 Velocity range set to ±143 RPM (DDSM115)")
+        except Exception as e:
+            self.log_message(f"⚠️ Error updating velocity range: {e}")
+
+    def _update_control_availability(self, motor_type: str):
+        """Enable/disable position and current controls based on motor type"""
+        try:
+            if motor_type == "ddsm210":
+                # DDSM210 only supports velocity - disable position and current
+                self.pos_frame.configure(text="Position Control (Not Supported)")
+                self.curr_frame.configure(text="Current Control (Not Supported)")
+                self._set_frame_state(self.pos_frame, "disabled")
+                self._set_frame_state(self.curr_frame, "disabled")
+                
+                # DDSM210 uses fixed motor ID 1 - disable motor ID spinbox
+                self.motor_id_spinbox.configure(state="disabled")
+                
+                self.log_message("🔧 Position and current controls disabled (DDSM210 velocity-only)")
+                self.log_message("🔧 Motor ID locked to 1 (DDSM210 fixed ID)")
+            else:
+                # DDSM115 supports all modes - enable all controls
+                self.pos_frame.configure(text="Position Control")
+                self.curr_frame.configure(text="Current Control")
+                self._set_frame_state(self.pos_frame, "normal")
+                self._set_frame_state(self.curr_frame, "normal")
+                
+                # DDSM115 supports multiple motor IDs - enable spinbox
+                self.motor_id_spinbox.configure(state="normal")
+                
+                self.log_message("🔧 All control modes enabled (DDSM115)")
+                self.log_message("🔧 Motor ID selection enabled (DDSM115 multi-motor)")
+        except Exception as e:
+            self.log_message(f"⚠️ Error updating control availability: {e}")
+    
+    def _set_frame_state(self, frame, state):
+        """Recursively set the state of all widgets in a frame"""
+        try:
+            # Set state for the frame itself
+            if hasattr(frame, 'configure'):
+                if state == "disabled":
+                    frame.configure(style="Disabled.TLabelframe")
+                else:
+                    frame.configure(style="TLabelframe")
+            
+            # Recursively set state for all child widgets
+            for child in frame.winfo_children():
+                widget_class = child.winfo_class()
+                if widget_class in ['TScale', 'Scale']:
+                    child.configure(state=state)
+                elif widget_class in ['TEntry', 'Entry']:
+                    child.configure(state=state)
+                elif widget_class in ['TLabel', 'Label']:
+                    if state == "disabled":
+                        child.configure(foreground="#666666")
+                    else:
+                        child.configure(foreground="#e0e0e0")
+                elif widget_class in ['Frame', 'TFrame']:
+                    self._set_frame_state(child, state)
+        except Exception as e:
+            pass  # Ignore errors for widgets that don't support state changes
 
     def auto_detect_motor(self):
         """Auto-detect motor ID and initialize position slider"""
@@ -2213,19 +2324,32 @@ and power disconnection for immediate safety in any uncertain situation.
             self.log_message("❌ Not connected")
             return
             
-        self.log_message("🔍 Detecting motors...")
-        found = self.motor_controller.scan_motors(1, 10)
+        # Check motor type to decide scanning approach
+        motor_type = self.motor_controller.get_motor_type()
         
-        if found:
-            motor_id = found[0]
+        if motor_type == "ddsm210":
+            # DDSM210 always uses motor ID 1 (single motor per port)
+            self.log_message("🔧 DDSM210 detected - using fixed motor ID 1")
+            motor_id = 1
             self.motor_id_var.set(motor_id)
-            self.log_message(f"✅ Found motor at ID {motor_id}")
+            self.log_message(f"✅ Using motor ID {motor_id} (DDSM210)")
             
             # Initialize position slider to current motor position
-            # Do this after a brief delay to ensure connection is stable
             self.schedule_callback(500, lambda: self._initialize_position_slider(motor_id))
         else:
-            self.log_message("⚠️ No motors detected")
+            # DDSM115 - scan for motors
+            self.log_message("🔍 Detecting motors...")
+            found = self.motor_controller.scan_motors(1, 10)
+            
+            if found:
+                motor_id = found[0]
+                self.motor_id_var.set(motor_id)
+                self.log_message(f"✅ Found motor at ID {motor_id}")
+                
+                # Initialize position slider to current motor position
+                self.schedule_callback(500, lambda: self._initialize_position_slider(motor_id))
+            else:
+                self.log_message("⚠️ No motors detected")
     
     def register_validation_commands(self):
         """Register validation commands for entry fields"""

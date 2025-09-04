@@ -1,21 +1,38 @@
 #!/bin/bash
-# DDSM115 Motor Control - Unified Launcher
-# Handles first-time setup and launching
+# DDSM115/210 Motor Control - Unified Launcher
+# Handles first-time setup and launching with auto-detection
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "🎯 DDSM115 Motor Control - Starting..."
+echo "🎯 DDSM115/210 Motor Control - Starting..."
 
 # Check if Python 3 is available
 if ! command -v python3 &> /dev/null; then
     echo "❌ Python 3 is required but not found."
     echo "📋 Please install Python 3.8+ and try again."
-    echo "   Ubuntu/Debian: sudo apt install python3 python3-pip python3-venv"
-    echo "   RHEL/CentOS:   sudo yum install python3 python3-pip"
-    echo "   macOS:         brew install python"
+    echo "   Ubuntu/Debian: sudo apt install python3 python3-pip python3-venv python3-tk"
+    echo "   RHEL/CentOS:   sudo yum install python3 python3-pip python3-tkinter"
+    echo "   macOS:         brew install python-tk"
+    exit 1
+fi
+
+# Check if tkinter is available
+echo "🔍 Checking GUI dependencies..."
+if ! python3 -c "import tkinter" 2>/dev/null; then
+    echo "⚠️  tkinter (GUI library) not found!"
+    echo "📋 Installing tkinter is required for the GUI interface."
+    echo ""
+    echo "Please run one of these commands based on your system:"
+    echo "   Ubuntu/Debian: sudo apt install python3-tk"
+    echo "   RHEL/CentOS:   sudo yum install python3-tkinter"
+    echo "   Fedora:        sudo dnf install python3-tkinter"
+    echo "   Arch Linux:    sudo pacman -S tk"
+    echo "   macOS:         brew install python-tk"
+    echo ""
+    echo "After installing tkinter, run this script again."
     exit 1
 fi
 
@@ -45,11 +62,11 @@ fi
 
 # Check if source files exist in the new structure
 if [ -f "src/ddsm115_gui.py" ]; then
-    echo "🚀 Launching DDSM115 Motor Control GUI..."
+    echo "🚀 Launching DDSM115/210 Motor Control GUI..."
     cd src
     ../venv/bin/python3 ddsm115_gui.py
 elif [ -f "ddsm115_gui.py" ]; then
-    echo "🚀 Launching DDSM115 Motor Control GUI (legacy location)..."
+    echo "🚀 Launching DDSM115/210 Motor Control GUI (legacy location)..."
     ./venv/bin/python3 ddsm115_gui.py
 else
     echo "❌ Main application file not found!"

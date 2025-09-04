@@ -41,20 +41,17 @@ class SimpleDDSM115GUI:
     def __init__(self, root):
         self.root = root
         self.root.title("DDSM115/210 Motor Control v1.0.0")
-        self.root.geometry("1071x805")  # Increased width to accommodate dual Y-axis torque scale
-        self.root.minsize(950, 700)
+        self.root.geometry("1400x900")  # Larger size for better usability
+        self.root.minsize(1200, 800)
         
         # Set dark background
         self.root.configure(bg='#2b2b2b')
         
-        # Create custom window controls for touch-friendly operation
-        self.create_custom_window_controls()
+        # Keep standard window decorations for desktop use
+        # Removed overrideredirect to allow normal window controls
+        # self.root.overrideredirect(True)  # Commented out for desktop compatibility
         
-        # Remove standard window decorations for touch-only interface
-        # This hides the original OS window buttons since we have custom ones
-        self.root.overrideredirect(True)
-        
-        # Configure touch-friendly styles
+        # Configure desktop-friendly styles
         self.setup_touch_styles()
         
         # Motor controller
@@ -144,7 +141,7 @@ class SimpleDDSM115GUI:
         style = ttk.Style()
         
         # Set dark theme
-        style.theme_use('alt')
+        style.theme_use('clam')  # Better theme for desktop
         
         # Configure dark colors with subtle selection
         style.configure('.', 
@@ -158,33 +155,34 @@ class SimpleDDSM115GUI:
         
         # Configure larger buttons with dark theme
         style.configure('Touch.TButton', 
-                       padding=(15, 10),
+                       padding=(20, 15),  # Increased padding
+                       font=('Arial', 12),  # Larger font
                        background='#4a4a4a',
                        foreground='#e0e0e0',
                        focuscolor='#4a9eff',
-                       borderwidth=0,
-                       relief='flat')
+                       borderwidth=1,
+                       relief='raised')
         style.map('Touch.TButton',
                  background=[('active', '#5a5a5a'), ('pressed', '#3a3a3a')])
         
         style.configure('Action.TButton', 
-                       padding=(20, 15), 
-                       font=('Arial', 11, 'bold'),
+                       padding=(25, 20),  # Larger padding
+                       font=('Arial', 14, 'bold'),  # Larger font
                        background='#4a7c4a',
                        foreground='#ffffff',
-                       borderwidth=0,
-                       relief='flat')
+                       borderwidth=2,
+                       relief='raised')
         style.map('Action.TButton',
                  background=[('active', '#5a8c5a'), ('pressed', '#3a6c3a')])
         
-        # Configure smaller control buttons
+        # Configure control buttons
         style.configure('Control.TButton', 
-                       padding=(10, 5), 
-                       font=('Arial', 10),
+                       padding=(15, 10),  # Increased padding
+                       font=('Arial', 11),  # Larger font
                        background='#4a4a4a',
                        foreground='#e0e0e0',
-                       borderwidth=0,
-                       relief='flat')
+                       borderwidth=1,
+                       relief='raised')
         
         # Configure larger checkbuttons with dark theme
         style.configure('Touch.TCheckbutton', 
@@ -202,40 +200,42 @@ class SimpleDDSM115GUI:
         
         # Configure larger labels with dark theme
         style.configure('Touch.TLabel', 
-                       font=('Arial', 11),
+                       font=('Arial', 13),  # Larger font
                        background='#2b2b2b',
                        foreground='#e0e0e0')
         style.configure('TouchBold.TLabel', 
-                       font=('Arial', 11, 'bold'),
+                       font=('Arial', 13, 'bold'),  # Larger font
                        background='#2b2b2b',
                        foreground='#e0e0e0')
         
         # Configure larger combobox with dark theme
         style.configure('Touch.TCombobox', 
-                       arrowsize=20,
+                       arrowsize=25,  # Larger arrow
                        fieldbackground='#3c3c3c',
                        background='#4a4a4a',
                        foreground='#e0e0e0',
-                       borderwidth=0,
-                       relief='flat')
+                       font=('Arial', 12),  # Larger font
+                       borderwidth=1,
+                       relief='solid')
         
         # Configure larger spinbox with dark theme
         style.configure('Touch.TSpinbox', 
-                       arrowsize=20,
+                       arrowsize=25,  # Larger arrow
                        fieldbackground='#3c3c3c',
                        background='#4a4a4a',
                        foreground='#e0e0e0',
-                       borderwidth=0,
-                       relief='flat')
+                       font=('Arial', 12),  # Larger font
+                       borderwidth=1,
+                       relief='solid')
         
         # Configure notebook tabs with dark theme
         style.configure('TNotebook.Tab', 
-                       padding=(20, 10), 
-                       font=('Arial', 11),
+                       padding=(25, 15),  # Larger padding
+                       font=('Arial', 14, 'bold'),  # Larger font
                        background='#3c3c3c',
                        foreground='#e0e0e0',
-                       borderwidth=0,
-                       relief='flat')
+                       borderwidth=1,
+                       relief='raised')
         style.map('TNotebook.Tab',
                  background=[('selected', '#4a9eff')])
         
@@ -2244,19 +2244,32 @@ and power disconnection for immediate safety in any uncertain situation.
             self.log_message("❌ Not connected")
             return
             
-        self.log_message("🔍 Detecting motors...")
-        found = self.motor_controller.scan_motors(1, 10)
+        # Check motor type to decide scanning approach
+        motor_type = self.motor_controller.get_motor_type()
         
-        if found:
-            motor_id = found[0]
+        if motor_type == "ddsm210":
+            # DDSM210 always uses motor ID 1 (single motor per port)
+            self.log_message("🔧 DDSM210 detected - using fixed motor ID 1")
+            motor_id = 1
             self.motor_id_var.set(motor_id)
-            self.log_message(f"✅ Found motor at ID {motor_id}")
+            self.log_message(f"✅ Using motor ID {motor_id} (DDSM210)")
             
             # Initialize position slider to current motor position
-            # Do this after a brief delay to ensure connection is stable
             self.schedule_callback(500, lambda: self._initialize_position_slider(motor_id))
         else:
-            self.log_message("⚠️ No motors detected")
+            # DDSM115 - scan for motors
+            self.log_message("🔍 Detecting motors...")
+            found = self.motor_controller.scan_motors(1, 10)
+            
+            if found:
+                motor_id = found[0]
+                self.motor_id_var.set(motor_id)
+                self.log_message(f"✅ Found motor at ID {motor_id}")
+                
+                # Initialize position slider to current motor position
+                self.schedule_callback(500, lambda: self._initialize_position_slider(motor_id))
+            else:
+                self.log_message("⚠️ No motors detected")
     
     def register_validation_commands(self):
         """Register validation commands for entry fields"""

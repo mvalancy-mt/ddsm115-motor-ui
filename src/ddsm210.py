@@ -196,10 +196,15 @@ class DDSM210:
                 self.on_error(f"Communication error: {str(e)}")
             return None
     
-    def scan_motors(self) -> List[int]:
+    def scan_motors(self, start_id: int = 1, end_id: int = 10) -> List[int]:
         """
         Scan for DDSM210 motors (always returns [1] since DDSM210 uses fixed ID)
+        Parameters are ignored for compatibility with DDSM115 interface
         
+        Args:
+            start_id: Ignored (for DDSM115 compatibility)
+            end_id: Ignored (for DDSM115 compatibility)
+            
         Returns:
             List[int]: List of detected motor IDs
         """
@@ -275,6 +280,24 @@ class DDSM210:
             if not self.suppress_comm_errors and self.on_error:
                 self.on_error(f"Set velocity failed: {str(e)}")
             return False
+    
+    def set_mode(self, motor_id: int, mode) -> bool:
+        """
+        Set motor mode (DDSM115-compatible interface)
+        DDSM210 only supports velocity mode, so this always sets velocity mode
+        
+        Args:
+            motor_id: Motor ID (ignored for DDSM210)
+            mode: Motor mode (ignored - DDSM210 only supports velocity)
+            
+        Returns:
+            bool: True if mode set successfully
+        """
+        if not self.is_connected:
+            return False
+        
+        # DDSM210 only supports velocity mode
+        return self._set_velocity_mode()
     
     def emergency_stop(self, motor_id: int) -> bool:
         """

@@ -356,17 +356,29 @@ class DDSM210:
             return None
         
         try:
-            # DDSM210 doesn't provide real feedback, so simulate it
+            # When motor is idle (velocity = 0), send a ping to verify it's alive
+            if self._current_velocity == 0.0:
+                # Send mode query command as a "ping" to check if motor is responsive
+                mode_cmd = [0x01, 0x75, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47]
+                response = self._send_raw_command(mode_cmd)
+                
+                if response and len(response) >= 3:
+                    # Motor responded - it's alive!
+                    if response[1] == 0x75 and response[2] == 0x02:
+                        # Confirmed in velocity mode and responding
+                        pass  # Motor is alive and responding
+                else:
+                    # No response - motor might be disconnected
+                    if not self.suppress_comm_errors and self.on_error:
+                        self.on_error("⚠️ Motor ping failed - connection may be lost")
+            
+            # Return current motor state feedback
             feedback = MotorFeedback()
             feedback.timestamp = time.time()
             feedback.velocity = self._current_velocity  # Use commanded velocity
             feedback.position = 0.0  # DDSM210 doesn't provide position
             feedback.torque = 0.0    # DDSM210 doesn't provide torque
             feedback.temperature = 0.0  # DDSM210 doesn't provide temperature
-            
-            # For DDSM210, disable position estimation since it's not accurate
-            # and the motor doesn't provide real position feedback
-            feedback.position = 0.0  # Always show 0° - no position control
             
             self.last_feedback[self.motor_id] = feedback
             return feedback
@@ -442,7 +454,7 @@ class DDSM210:
             self._monitoring_thread.join(timeout=1.0)
     
     def _monitoring_loop(self):
-        """Background monitoring loop"""
+        """Background monitoring loop with adaptive interval"""
         while self._monitoring_active:
             try:
                 for motor_id in self._monitored_motors:
@@ -453,7 +465,15 @@ class DDSM210:
                     if feedback and self.on_feedback:
                         self.on_feedback(motor_id, feedback)
                 
-                time.sleep(self._monitor_interval)
+                # Adaptive monitoring interval:
+                # - 1.0s when motor is idle (acts as connection ping)
+                # - 0.1s when motor is running (for real-time feedback)
+                if self._current_velocity == 0.0:
+                    sleep_time = 1.0  # 1 second ping when idle
+                else:
+                    sleep_time = self._monitor_interval  # Fast updates when running
+                    
+                time.sleep(sleep_time)
                 
             except Exception as e:
                 if not self.suppress_comm_errors and self.on_error:
